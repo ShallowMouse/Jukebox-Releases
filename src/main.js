@@ -86,7 +86,16 @@ function createMainWindow() {
     if (input.key === 'F12' && input.control) mainWin.webContents.toggleDevTools();
     if (input.key === 'q' && input.control && input.shift) app.quit();
   });
-  mainWin.on('closed', () => { mainWin = null; app.quit(); });
+  mainWin.on('close', () => {
+    // Closing the jukebox window quits everything, including the hidden YouTube player.
+    app.isQuitting = true;
+    if (ytWin && !ytWin.isDestroyed()) { ytWin.webContents.setAudioMuted(true); ytWin.destroy(); }
+  });
+  mainWin.on('closed', () => {
+    mainWin = null;
+    app.quit();
+    setTimeout(() => app.exit(0), 3000); // never linger in the background
+  });
 }
 
 // ---------------------------------------------------------------- Jellyfin
@@ -413,6 +422,8 @@ function ensureYtWin() {
   });
   ytWin.webContents.setUserAgent(FIREFOX_UA);
   ytWin.webContents.setAudioMuted(false);
+  // YouTube's page asks "leave site?" while playing; never let that block a new song or quitting.
+  ytWin.webContents.on('will-prevent-unload', (e) => e.preventDefault());
   ytWin.on('close', (e) => {
     if (app.isQuitting) return;
     e.preventDefault();
@@ -429,7 +440,10 @@ ipcMain.handle('yt:play', (_e, videoId) => {
   w.webContents.send('yt:expect', videoId);
   w.loadURL(`https://music.youtube.com/watch?v=${encodeURIComponent(videoId)}`);
 });
+let ytVolume = typeof config.volume === 'number' ? config.volume : 0.8;
+ipcMain.on('yt:getVolume', (e) => { e.returnValue = ytVolume; });
 ipcMain.handle('yt:cmd', (_e, cmd, arg) => {
+  if (cmd === 'volume' && typeof arg === 'number') ytVolume = arg;
   if (!ytWin || ytWin.isDestroyed()) return;
   ytWin.webContents.send('yt:cmd', cmd, arg);
 });

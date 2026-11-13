@@ -14,7 +14,31 @@ try {
 
 let expected = null;      // videoId the jukebox asked for
 let wantPlaying = false;  // jukebox wants audio running
-let volume = 0.8;
+let volume = (() => { try { return ipcRenderer.sendSync('yt:getVolume'); } catch { return 0.8; } })();
+
+// The jukebox volume is applied *after* YouTube's player (Web Audio gain), so we never fight
+// YouTube over video.volume. YouTube keeps doing its own loudness levelling underneath.
+let ctx = null, gain = null;
+const routed = new WeakSet();
+function route(v) {
+  if (routed.has(v)) return;
+  try {
+    if (!ctx) { ctx = new AudioContext(); gain = ctx.createGain(); gain.gain.value = volume; gain.connect(ctx.destination); }
+    ctx.createMediaElementSource(v).connect(gain);
+    routed.add(v);
+  } catch (e) { routed.add(v); }
+}
+function applyVolume() { if (gain && ctx) gain.gain.setTargetAtTime(volume, ctx.currentTime, 0.04); }
+function ytPlayerFull() {
+  // Keep YouTube's own volume slider at 100% and unmuted; our gain does the rest.
+  try {
+    contextBridge.executeInMainWorld({ func: () => {
+      const p = document.getElementById('movie_player');
+      if (p && p.getVolume && (p.getVolume() !== 100 || (p.isMuted && p.isMuted()))) { p.setVolume(100); if (p.unMute) p.unMute(); }
+    } });
+  } catch {}
+}
+setInterval(ytPlayerFull, 2000);
 let endedFor = null;
 let startedAt = 0;
 
@@ -26,7 +50,7 @@ ipcRenderer.on('yt:cmd', (_e, cmd, arg) => {
     case 'play': wantPlaying = true; if (v) v.play().catch(() => {}); break;
     case 'stop': wantPlaying = false; expected = null; if (v) v.pause(); break;
     case 'seek': if (v && isFinite(arg)) v.currentTime = arg; break;
-    case 'volume': volume = Math.max(0, Math.min(1, arg)); if (v) v.volume = volume; break;
+    case 'volume': volume = Math.max(0, Math.min(1, arg)); applyVolume(); break;
   }
 });
 
@@ -44,7 +68,8 @@ function tick() {
   if (still) still.click();
 
   if (v) {
-    if (Math.abs(v.volume - volume) > 0.02) v.volume = volume;
+    route(v);
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
     v.muted = false;
 
     // YouTube Music's own autoplay moved on to something we didn't ask for — hold it.
