@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('jb', {
     onProgress: (fn) => ipcRenderer.on('local:progress', (_e, p) => fn(p)),
   },
   yt: {
-    search: inv('yt:search'), suggest: inv('yt:suggest'), radio: inv('yt:radio'),
+    search: inv('yt:search'), suggest: inv('yt:suggest'), artist: inv('yt:artist'), radio: inv('yt:radio'),
     play: inv('yt:play'), cmd: inv('yt:cmd'), stop: inv('yt:stop'),
     showLogin: inv('yt:showLogin'), hideLogin: inv('yt:hideLogin'),
     onState: (fn) => ipcRenderer.on('yt:state', (_e, s) => fn(s)),

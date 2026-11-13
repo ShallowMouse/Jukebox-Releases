@@ -376,3 +376,38 @@ body.osk-open .settings-sheet { margin-bottom: 40vh; max-height: 55vh; }
 .toast { background: var(--paper) var(--grain); color: var(--ink); font-family: var(--type); font-weight: 700; font-size: 1.15rem; padding: 1rem 1.8rem; border-radius: .2rem;
   border-left: .5rem dashed var(--red); box-shadow: 0 1rem 2.4rem rgba(0, 0, 0, .6); animation: rise .2s ease; max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .toast.err { color: var(--red); }
+
+/* ------------------------------------------------ YouTube Music artists */
+.artist-row { display: flex; gap: 1.8rem; overflow-x: auto; padding: .6rem .5rem 1.2rem; }
+.artist-row::-webkit-scrollbar { height: 0; }
+.artist-card { flex: none; width: 10.5rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: .55rem; }
+.artist-card .pic { width: 10.5rem; height: 10.5rem; border-radius: 50%; overflow: hidden; background: #3a2418;
+  box-shadow: 0 0 0 .3rem #cfcac2, 0 0 0 .42rem #4a3426, 0 .7rem 1.4rem rgba(0,0,0,.6); }
+.artist-card .pic img { width: 100%; height: 100%; object-fit: cover; filter: sepia(.25) contrast(1.05); }
+.artist-card .t1 { font-family: var(--type); font-weight: 700; font-size: 1.05rem; color: var(--cream); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artist-card .t2 { font-family: var(--label); letter-spacing: .1em; text-transform: uppercase; font-size: .78rem; color: rgba(245, 233, 204, .6); }
+
+.artist-sheet { width: min(84vw, 98rem); height: 86vh; display: flex; flex-direction: column; overflow: hidden; }
+.artist-banner { position: relative; height: 40%; flex: none; overflow: hidden; border-radius: 1.4rem 1.4rem 0 0; background: #1a0f08; }
+.artist-bg { position: absolute; inset: 0; background: center 25% / cover; filter: sepia(.4) saturate(.85) contrast(1.05); }
+.artist-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,10,5,.1) 30%, rgba(30,15,7,.92)), var(--grain); }
+.artist-head { position: absolute; left: 2.4rem; right: 6rem; bottom: 1.4rem; z-index: 1; }
+.artist-kicker { font-family: var(--label); font-size: .95rem; letter-spacing: .4em; text-transform: uppercase; color: var(--amber); }
+.artist-name { font-family: var(--script); font-size: 5rem; line-height: 1.05; color: #fff1e6; text-shadow: 0 .3rem .8rem rgba(0,0,0,.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artist-sub { font-family: var(--label); letter-spacing: .14em; text-transform: uppercase; color: rgba(245, 233, 204, .75); font-size: 1rem; }
+.artist-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 26% 1fr; gap: 2rem; padding: 1.6rem 2.2rem 2.2rem; }
+.artist-side { display: flex; flex-direction: column; gap: 1.2rem; min-height: 0; }
+.artist-about { margin: 0; font-family: var(--type); font-size: 1rem; line-height: 1.5; color: rgba(245, 233, 204, .8); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; }
+.artist-body .tracklist { margin-top: 0; }
+.tracklist .thumb { width: 3.4rem; height: 3.4rem; border-radius: .15rem; object-fit: cover; filter: sepia(.15); box-shadow: 0 .15rem .35rem rgba(0,0,0,.35); }
+.tracklist.with-art li > button { grid-template-columns: 2.4rem 3.4rem 1fr auto 3.3rem; }
+
+/* artist photo behind now-playing and on the idle screen */
+.np { overflow: hidden; }
+.np > *:not(.np-photo) { position: relative; }
+.np-photo { position: absolute; inset: 0; background: center 25% / cover; opacity: 0; transition: opacity 1.2s ease; filter: sepia(.5) saturate(.8) brightness(.42); }
+.np-photo.on { opacity: 1; }
+.np-artist.link { text-decoration: underline dotted rgba(42, 28, 18, .5); text-underline-offset: .25rem; }
+.idle-photo { position: absolute; inset: 0; background: center 25% / cover; opacity: 0; transition: opacity 1.6s ease; filter: sepia(.45) saturate(.85) brightness(.5); }
+.idle-photo.on { opacity: 1; }
+.idle-photo::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120vw 90vh at 50% 50%, transparent 30%, rgba(10,5,2,.85)), var(--grain); }

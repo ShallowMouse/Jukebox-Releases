@@ -323,12 +323,14 @@ async function getYT() {
   yt = await Innertube.create({ retrieve_player: false, lang: 'en', location: 'NZ' });
   return yt;
 }
-function bestThumb(thumbs) {
+function bestThumb(thumbs, square = true) {
+  if (thumbs && !Array.isArray(thumbs) && thumbs.contents) thumbs = thumbs.contents;
   if (!thumbs || !thumbs.length) return '';
   const t = [...thumbs].sort((a, b) => (b.width || 0) - (a.width || 0))[0];
   // Ask Google's image server for a bigger square version when possible
-  return (t.url || '').replace(/=w\d+-h\d+/, '=w600-h600');
+  return square ? (t.url || '').replace(/=w\d+-h\d+/, '=w600-h600') : (t.url || '');
 }
+const firstArtistId = (list) => { for (const a of list || []) if (a && a.channel_id) return a.channel_id; return ''; };
 function ytTrackFromItem(it) {
   const id = it.id || it.video_id;
   if (!id) return null;
@@ -342,6 +344,7 @@ function ytTrackFromItem(it) {
     id,
     title,
     artist: artists.join(', ') || it.author || '',
+    artistId: firstArtistId(it.artists) || firstArtistId(it.authors),
     album: (it.album && it.album.name) || '',
     duration: (it.duration && it.duration.seconds) || 0,
     art: bestThumb(thumbs),
@@ -349,15 +352,56 @@ function ytTrackFromItem(it) {
 }
 ipcMain.handle('yt:search', async (_e, q) => {
   const y = await getYT();
-  const r = await y.music.search(q, { type: 'song' });
+  const [songs, artistRes] = await Promise.all([
+    y.music.search(q, { type: 'song' }),
+    y.music.search(q, { type: 'artist' }).catch(() => null),
+  ]);
   const items = [];
-  for (const shelf of r.contents || []) for (const it of shelf.contents || []) {
+  for (const shelf of songs.contents || []) for (const it of shelf.contents || []) {
     if (it.type === 'MusicResponsiveListItem' && (it.item_type === 'song' || it.item_type === 'video' || it.item_type === 'non_music_track')) {
       const t = ytTrackFromItem(it); if (t) items.push(t);
     }
   }
-  return { tracks: items, albums: [] };
+  const artists = [];
+  for (const shelf of (artistRes && artistRes.contents) || []) for (const it of shelf.contents || []) {
+    if (it.type === 'MusicResponsiveListItem' && it.item_type === 'artist' && it.id && artists.length < 6) {
+      const name = it.name || (it.title && it.title.toString()) || '';
+      artists.push({ id: it.id, name, art: bestThumb(it.thumbnails), subscribers: it.subscribers || '' });
+    }
+  }
+  return { tracks: items, albums: [], artists };
 });
+
+// Artist pages: banner photo + top songs. Cached, since now-playing asks for the same artists a lot.
+const artistCache = new Map();
+async function ytArtist(id) {
+  if (!id) return null;
+  if (artistCache.has(id)) return artistCache.get(id);
+  const p = (async () => {
+    const y = await getYT();
+    const a = await y.music.getArtist(id);
+    const h = a.header || {};
+    const name = h.title ? h.title.toString() : '';
+    const banner = bestThumb(h.thumbnail, false) || bestThumb(h.foreground_thumbnail, false);
+    const photo = bestThumb(h.foreground_thumbnail) || bestThumb(h.thumbnail);
+    let about = '';
+    try { about = h.description ? h.description.toString() : ''; } catch {}
+    const songs = [];
+    for (const sec of a.sections || []) {
+      if (sec.type !== 'MusicShelf') continue;
+      for (const it of sec.contents || []) {
+        const t = it.type === 'MusicResponsiveListItem' ? ytTrackFromItem(it) : null;
+        if (t) { if (!t.artist) t.artist = name; if (!t.artistId) t.artistId = id; songs.push(t); }
+      }
+      if (songs.length) break;
+    }
+    return { id, name, banner, photo, about: about.slice(0, 400), songs };
+  })();
+  artistCache.set(id, p);
+  p.catch(() => artistCache.delete(id));
+  return p;
+}
+ipcMain.handle('yt:artist', (_e, id) => ytArtist(id));
 ipcMain.handle('yt:suggest', async (_e, q) => {
   try {
     const y = await getYT();
@@ -380,6 +424,7 @@ ipcMain.handle('yt:radio', async (_e, videoId, n = 10) => {
     out.push({
       source: 'youtube', id: v.video_id, title: v.title ? v.title.toString() : '',
       artist: (v.artists || []).map(a => a.name).join(', ') || v.author || '',
+      artistId: firstArtistId(v.artists),
       album: (v.album && v.album.name) || '', duration: (v.duration && v.duration.seconds) || 0,
       art: bestThumb(v.thumbnail),
     });

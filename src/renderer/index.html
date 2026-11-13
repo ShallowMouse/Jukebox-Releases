@@ -34,6 +34,7 @@
 
   <aside class="side">
     <section class="np" id="np">
+      <div class="np-photo" id="npPhoto"></div>
       <div class="turntable">
         <div class="platter"></div>
         <div class="record" id="record">
@@ -82,6 +83,19 @@
   </div>
 </div>
 
+<!-- Artist page (YouTube Music) -->
+<div class="overlay" id="artistOverlay" hidden>
+  <div class="sheet artist-sheet">
+    <button class="close-x" data-close>×</button>
+    <div class="artist-banner"><div class="artist-bg" id="artistBg"></div>
+      <div class="artist-head"><div class="artist-kicker">YouTube Music presents</div><div class="artist-name" id="artistName"></div><div class="artist-sub" id="artistSub"></div></div></div>
+    <div class="artist-body">
+      <div class="artist-side"><button class="big-btn primary" id="artistAddAll">Queue top songs</button><p class="artist-about" id="artistAbout"></p></div>
+      <ol class="tracklist" id="artistTracks"></ol>
+    </div>
+  </div>
+</div>
+
 <!-- Search -->
 <div class="overlay search-overlay" id="searchOverlay" hidden>
   <div class="search-panel">
@@ -113,6 +127,7 @@
 
 <!-- Idle / attract screen -->
 <div class="idle" id="idle" hidden>
+  <div class="idle-photo" id="idlePhoto"></div>
   <div class="bubble left"><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="bubble right"><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="idle-clock" id="idleClock"></div>

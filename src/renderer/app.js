@@ -159,10 +159,11 @@ function stripCard(a, i, letter) {
 let rowTracks = [];   // tracks currently rendered as rows (index -> track)
 let gridAlbums = [];  // albums currently rendered as cards
 let gridArtists = [];
+let gridYArtists = [];
 
 function renderBrowse() {
   const src = S.tab, bar = $('#browseBar'), sc = $('#scroller'), az = $('#az');
-  rowTracks = []; gridAlbums = []; gridArtists = [];
+  rowTracks = []; gridAlbums = []; gridArtists = []; gridYArtists = [];
   az.innerHTML = ''; az.hidden = true;
   const ready = SRC[src].ready();
 
@@ -181,6 +182,11 @@ function renderBrowse() {
     if (res.loading) html = `<div class="empty"><div class="spinner"></div><p>Searching ${TAB_NAMES[src]}…</p></div>`;
     else if (res.error) html = emptyState('Search failed', res.error);
     else {
+      if (res.artists && res.artists.length) {
+        gridYArtists = res.artists;
+        html += `<div class="section-head">Artists</div><div class="artist-row">${res.artists.map((a, i) => `<button class="artist-card" data-yartist="${i}">
+          <div class="pic">${a.art ? `<img loading="lazy" src="${esc(a.art)}" alt="">` : ''}</div><div class="t1">${esc(a.name)}</div><div class="t2">${esc(a.subscribers || 'Artist')}</div></button>`).join('')}</div>`;
+      }
       if (res.albums && res.albums.length) {
         gridAlbums = res.albums;
         html += `<div class="section-head">Records</div><div class="strips">${res.albums.map((a, i) => stripCard(a, i)).join('')}</div>`;
@@ -256,6 +262,7 @@ $('#browse').addEventListener('click', async (e) => {
   const src = S.tab;
   if (t.dataset.view) { S.view[src] = t.dataset.view; renderBrowse(); return; }
   if (t.dataset.album !== undefined) { openAlbum(gridAlbums[+t.dataset.album]); return; }
+  if (t.dataset.yartist !== undefined) { openArtist(gridYArtists[+t.dataset.yartist]); return; }
   if (t.dataset.artist !== undefined) { S.artistFilter[src] = gridArtists[+t.dataset.artist].name; renderBrowse(); return; }
   if (t.dataset.track !== undefined) { addToQueue(rowTracks[+t.dataset.track]); refreshQueuedMarks(); return; }
   if (t.dataset.q) { runSearch(t.dataset.q); return; }
@@ -318,10 +325,74 @@ $('#albumAddAll').addEventListener('click', () => {
   if (n) closeOverlay($('#albumOverlay'));
 });
 
+/* ====================================================== YouTube Music artist page */
+async function openArtist(a) {
+  if (!a || !a.id) return;
+  S.artistOpen = { id: a.id, songs: null };
+  $('#artistBg').style.backgroundImage = a.art ? `url("${a.art}")` : '';
+  $('#artistName').textContent = a.name || '';
+  $('#artistSub').textContent = a.subscribers || '';
+  $('#artistAbout').textContent = '';
+  $('#artistTracks').innerHTML = `<div class="empty"><div class="spinner"></div></div>`;
+  $('#artistOverlay').hidden = false;
+  try {
+    const d = await jb.yt.artist(a.id);
+    if (!S.artistOpen || S.artistOpen.id !== a.id) return;
+    S.artistOpen.songs = d.songs || [];
+    if (d.banner || d.photo) $('#artistBg').style.backgroundImage = `url("${d.banner || d.photo}")`;
+    if (d.name) $('#artistName').textContent = d.name;
+    $('#artistAbout').textContent = d.about || '';
+    renderArtistTracks();
+  } catch (e) { $('#artistTracks').innerHTML = emptyState('Couldn\'t load this artist', (e && e.message || String(e)).replace(/^Error invoking remote method '[^']+': /, '')); }
+}
+function renderArtistTracks() {
+  const tr = S.artistOpen.songs;
+  const el = $('#artistTracks'); el.classList.add('with-art');
+  if (!tr.length) { el.innerHTML = '<li class="queue-empty">No songs listed for this artist.</li>'; return; }
+  el.innerHTML = tr.map((t, i) => `<li class="${isQueued(t) ? 'queued' : ''}"><button data-i="${i}">
+    <span class="no">${i + 1}</span>${t.art ? `<img class="thumb" src="${esc(t.art)}" alt="">` : '<span></span>'}
+    <span><div class="t1">${esc(t.title)}</div>${t.album ? `<div class="t2">${esc(t.album)}</div>` : ''}</span>
+    <span class="dur">${t.duration ? fmt(t.duration) : ''}</span><span class="add">${isQueued(t) ? '✓' : '+'}</span></button></li>`).join('');
+}
+$('#artistTracks').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-i]'); if (!b || !S.artistOpen || !S.artistOpen.songs) return;
+  addToQueue(S.artistOpen.songs[+b.dataset.i]); renderArtistTracks();
+});
+$('#artistAddAll').addEventListener('click', () => {
+  if (!S.artistOpen || !S.artistOpen.songs) return;
+  const n = addMany(S.artistOpen.songs.slice(0, 10)); renderArtistTracks();
+  if (n) closeOverlay($('#artistOverlay'));
+});
+$('#npArtist').addEventListener('click', () => {
+  const t = S.current;
+  if (t && t.source === 'youtube' && t.artistId) openArtist({ id: t.artistId, name: (t.artist || '').split(',')[0] });
+});
+
+// Artist photo behind the turntable and on the idle screen while a YouTube song plays
+let shownPhoto = '';
+function setArtistPhoto(url) {
+  if (url === shownPhoto) return;
+  shownPhoto = url;
+  const els = [$('#npPhoto'), $('#idlePhoto')];
+  if (!url) { els.forEach(e => e.classList.remove('on')); return; }
+  const img = new Image();
+  img.onload = () => { if (shownPhoto !== url) return; els.forEach(e => { e.style.backgroundImage = `url("${url}")`; e.classList.add('on'); }); };
+  img.onerror = () => { if (shownPhoto === url) els.forEach(e => e.classList.remove('on')); };
+  img.src = url;
+}
+function updateArtistPhoto() {
+  const t = S.current;
+  $('#npArtist').classList.toggle('link', !!(t && t.source === 'youtube' && t.artistId));
+  if (!t || t.source !== 'youtube' || !t.artistId) { setArtistPhoto(''); return; }
+  const id = t.artistId;
+  jb.yt.artist(id).then(d => { if (S.current && S.current.artistId === id) setArtistPhoto(d.banner || d.photo || ''); }).catch(() => setArtistPhoto(''));
+}
+
 /* ====================================================== overlays */
 function closeOverlay(ov) {
   ov.hidden = true;
   if (ov.id === 'albumOverlay') { S.albumOpen = null; refreshQueuedMarks(); }
+  if (ov.id === 'artistOverlay') { S.artistOpen = null; refreshQueuedMarks(); }
   if (ov.id === 'searchOverlay' || ov.id === 'settingsOverlay') OSK.hide();
 }
 document.addEventListener('click', (e) => {
@@ -540,6 +611,7 @@ function renderNP() {
   else { img.removeAttribute('src'); img.style.visibility = 'hidden'; $('#npArtEmpty').hidden = false; }
   renderPlayIcon();
   renderIdle();
+  updateArtistPhoto();
 }
 function renderProgress() {
   const f = S.dur > 0 ? Math.min(1, S.pos / S.dur) : 0;
