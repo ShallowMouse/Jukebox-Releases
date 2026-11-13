@@ -29,6 +29,10 @@ jobs:
           if ! git ls-remote --exit-code --tags origin "refs/tags/v$V" >/dev/null; then
             git tag "v$V" && git push origin "v$V"
           fi
+          # Re-running a version: turn its release back into a draft so the builds can replace the files
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null | grep -q false; then
+            gh release edit "v$V" --repo "$GITHUB_REPOSITORY" --draft=true
+          fi
 
   windows:
     needs: prepare
