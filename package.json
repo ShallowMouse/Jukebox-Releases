@@ -1,6 +1,6 @@
 {
   "name": "jukebox",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Touchscreen jukebox for Jellyfin, local music and YouTube Music",
   "main": "src/main.js",
   "scripts": {

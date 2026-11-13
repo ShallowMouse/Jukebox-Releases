@@ -507,6 +507,35 @@ ipcMain.handle('yt:hideLogin', () => { if (ytWin && !ytWin.isDestroyed()) ytWin.
 ipcMain.on('yt:state', (_e, st) => send('yt:state', st));
 
 
+
+// ---------------------------------------------------------------- play stats (most played artists)
+const STATS_PATH = () => path.join(USER(), 'stats.json');
+let stats = { artists: {} };
+try { stats = JSON.parse(fs.readFileSync(STATS_PATH(), 'utf8')); if (!stats.artists) stats.artists = {}; } catch {}
+let statsTimer = null;
+function saveStats() { clearTimeout(statsTimer); statsTimer = setTimeout(() => { try { fs.writeFileSync(STATS_PATH(), JSON.stringify(stats)); } catch {} }, 1000); }
+const firstName = (s) => String(s || '').split(/,\s*|\s+&\s+|\s+feat\.?\s+/i)[0].trim();
+ipcMain.handle('stats:played', (_e, t) => {
+  if (!t || !t.source) return;
+  const name = firstName(t.artist);
+  if (!name) return;
+  const key = t.source + ':' + (t.source === 'youtube' && t.artistId ? t.artistId : name.toLowerCase());
+  const a = stats.artists[key] || (stats.artists[key] = { source: t.source, name, artistId: t.artistId || '', count: 0, art: '', photo: '' });
+  a.count++; a.last = Date.now(); a.name = name;
+  if (t.art) a.art = t.art;
+  if (t.artistId) a.artistId = t.artistId;
+  saveStats();
+});
+ipcMain.handle('stats:topArtists', async (_e, source, n = 10) => {
+  const list = Object.values(stats.artists).filter(a => !source || a.source === source)
+    .sort((a, b) => b.count - a.count || (b.last || 0) - (a.last || 0)).slice(0, n);
+  // YouTube artists: use their real photo (fetched once, then remembered)
+  await Promise.all(list.filter(a => a.source === 'youtube' && a.artistId && !a.photo).map(async (a) => {
+    try { const d = await ytArtist(a.artistId); a.photo = d.photo || d.banner || ''; if (d.name) a.name = d.name; saveStats(); } catch {}
+  }));
+  return list.map(a => ({ ...a, image: a.photo || a.art }));
+});
+
 // ---------------------------------------------------------------- auto-update (GitHub releases)
 // Updates come from github.com/ShallowMouse/jukebox-releases (see "publish" in package.json).
 // Windows installer + Linux AppImage update silently; the .deb needs an admin password,

@@ -411,3 +411,13 @@ body.osk-open .settings-sheet { margin-bottom: 40vh; max-height: 55vh; }
 .idle-photo { position: absolute; inset: 0; background: center 25% / cover; opacity: 0; transition: opacity 1.6s ease; filter: sepia(.45) saturate(.85) brightness(.5); }
 .idle-photo.on { opacity: 1; }
 .idle-photo::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120vw 90vh at 50% 50%, transparent 30%, rgba(10,5,2,.85)), var(--grain); }
+
+/* most played artists */
+.top-artists { margin-top: 1.6rem; }
+.top-artists:empty { display: none; }
+.top-head { font-family: var(--script); font-size: 2.3rem; color: var(--cream); text-shadow: 0 .15rem .3rem rgba(0,0,0,.6); margin-bottom: .4rem; }
+.top-row { display: flex; gap: 1.6rem; overflow-x: auto; padding: .5rem .4rem 1rem; }
+.top-row::-webkit-scrollbar { height: 0; }
+.top-row .artist-card { width: 8.6rem; }
+.top-row .artist-card .pic { width: 8.6rem; height: 8.6rem; display: grid; place-items: center; font-family: var(--script); font-size: 2.6rem; color: rgba(245, 233, 204, .5); }
+.empty .top-artists { width: min(100%, 80rem); text-align: left; }

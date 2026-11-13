@@ -206,7 +206,9 @@ function renderBrowse() {
     const recent = LS.get('recent:youtube', []);
     sc.innerHTML = emptyState('Any song, any artist', 'Search the whole YouTube Music catalogue and add songs to the queue.',
       `<button class="big-btn primary" data-act="search">Search YouTube Music</button>
-       ${recent.length ? `<div class="suggest" style="justify-content:center">${recent.map(r => `<button class="chip" data-q="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}`);
+       ${recent.length ? `<div class="suggest" style="justify-content:center">${recent.map(r => `<button class="chip" data-q="${esc(r)}">${esc(r)}</button>`).join('')}</div>` : ''}
+       <div class="top-artists" id="ytTopArtists"></div>`);
+    renderTopArtists($('#ytTopArtists'), 'youtube');
     return;
   }
 
@@ -402,6 +404,36 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 
+/* ====================================================== most played artists */
+let topList = [];
+async function renderTopArtists(el, src) {
+  let list = [];
+  try { list = await jb.stats.topArtists(src, 10); } catch {}
+  topList = list;
+  if (!list.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="top-head">Most played</div><div class="top-row">${list.map((a, i) => `<button class="artist-card" data-top="${i}">
+    <div class="pic">${a.image ? `<img loading="lazy" src="${esc(a.image)}" alt="">` : esc(initials(a.name))}</div>
+    <div class="t1">${esc(a.name)}</div><div class="t2">${a.count} play${a.count === 1 ? '' : 's'}</div></button>`).join('')}</div>`;
+}
+function openTopArtist(a) {
+  if (!a) return;
+  closeOverlay($('#searchOverlay'));
+  if (a.source === 'youtube') {
+    if (S.tab !== 'youtube') setTab('youtube');
+    if (a.artistId) openArtist({ id: a.artistId, name: a.name, art: a.image }); else runSearch(a.name);
+    return;
+  }
+  // Jellyfin / local: show that artist's records
+  S.tab = a.source; S.results[a.source] = null; S.query[a.source] = '';
+  S.view[a.source] = 'strips'; S.artistFilter[a.source] = a.name;
+  renderTabs(); renderBrowse();
+  if (!S.albums[a.source]) loadAlbums(a.source);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-top]');
+  if (b) { e.stopPropagation(); openTopArtist(topList[+b.dataset.top]); }
+}, true);
+
 /* ====================================================== search */
 let suggestTimer = null;
 function openSearch() {
@@ -410,7 +442,9 @@ function openSearch() {
   const inp = $('#searchInput');
   inp.value = S.query[S.tab] || '';
   $('#searchOverlay').hidden = false;
+  $('#topArtists').hidden = !!inp.value;
   renderSuggest([]);
+  renderTopArtists($('#topArtists'), S.tab);
   inp.focus();
   inp.select();
   OSK.show(inp, { action: 'Search', onEnter: () => runSearch(inp.value) });
@@ -424,6 +458,7 @@ $('#suggest').addEventListener('click', (e) => { const b = e.target.closest('but
 $('#searchInput').addEventListener('input', () => {
   clearTimeout(suggestTimer);
   const q = $('#searchInput').value.trim();
+  $('#topArtists').hidden = !!q;
   if (!q) { renderSuggest([]); return; }
   if (S.tab === 'youtube') suggestTimer = setTimeout(async () => { const s = await jb.yt.suggest(q); if ($('#searchInput').value.trim() === q) renderSuggest(s); }, 300);
 });
@@ -522,6 +557,9 @@ async function next() {
   S.advancing = true;
   try {
     if (S.current && S.current.source === 'server' && S.pos > 30) jb.jf.reportPlay(S.current.id);
+    if (S.current && !S.current.auto && (S.pos >= 30 || (S.dur && S.pos >= S.dur - 2))) {
+      const { qid, ...t } = S.current; jb.stats.played(t).catch(() => {});
+    }
     if (!S.queue.length) await autofill();
     const t = S.queue.shift();
     if (!t) { stopAll(); return; }
