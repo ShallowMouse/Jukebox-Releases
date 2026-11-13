@@ -42,7 +42,7 @@ setInterval(ytPlayerFull, 2000);
 let endedFor = null;
 let startedAt = 0;
 
-ipcRenderer.on('yt:expect', (_e, id) => { expected = id; wantPlaying = true; endedFor = null; startedAt = Date.now(); });
+ipcRenderer.on('yt:expect', (_e, id) => { expected = id; wantPlaying = true; endedFor = null; startedAt = Date.now(); seen = { id: null, time: 0, dur: 0 }; });
 ipcRenderer.on('yt:cmd', (_e, cmd, arg) => {
   const v = document.querySelector('video');
   switch (cmd) {
@@ -58,6 +58,24 @@ function currentId() {
   try { return new URL(location.href).searchParams.get('v'); } catch { return null; }
 }
 
+// Report the end of the song the jukebox asked for, exactly once.
+function songEnded() {
+  if (!expected || endedFor === expected) return;
+  endedFor = expected;
+  ipcRenderer.send('yt:state', { event: 'ended', videoId: expected });
+}
+// What we last saw of the requested song actually playing.
+let seen = { id: null, time: 0, dur: 0 };
+const hooked = new WeakSet();
+function hook(v) {
+  if (hooked.has(v)) return;
+  hooked.add(v);
+  // the moment the media element finishes, before YouTube's autoplay moves on
+  v.addEventListener('ended', () => {
+    if (currentId() === expected && !document.querySelector('.ad-showing, .ad-interrupting')) songEnded();
+  });
+}
+
 function tick() {
   const v = document.querySelector('video');
   const id = currentId();
@@ -68,7 +86,14 @@ function tick() {
   if (still) still.click();
 
   if (v) {
+    hook(v);
     route(v);
+    if (expected && id === expected && !ad && v.duration > 0) seen = { id, time: v.currentTime, dur: v.duration };
+    // YouTube Music's autoplay jumped to another song after ours: ours has finished.
+    if (expected && id && id !== expected && !ad && seen.id === expected && endedFor !== expected) {
+      if (!v.paused) v.pause();
+      songEnded();
+    }
     if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
     v.muted = false;
 
@@ -82,10 +107,7 @@ function tick() {
     const dur = v.duration || 0;
     const isEnd = !ad && expected && id === expected && dur > 0 &&
       (v.ended || (v.currentTime >= dur - 0.35 && v.paused));
-    if (isEnd && endedFor !== expected) {
-      endedFor = expected;
-      ipcRenderer.send('yt:state', { event: 'ended', videoId: expected });
-    }
+    if (isEnd) songEnded();
     ipcRenderer.send('yt:state', {
       event: 'tick', videoId: id, expected, ad,
       paused: v.paused, currentTime: v.currentTime || 0, duration: dur,
