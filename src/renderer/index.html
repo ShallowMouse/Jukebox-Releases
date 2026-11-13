@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; img-src * data: blob: file:; media-src * blob: file:; style-src 'self' 'unsafe-inline'; font-src 'self' file:; script-src 'self'; connect-src *">
+<title>Jukebox</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="logo"><span class="logo-word">Jukebox</span><span class="logo-sub">Select-a-Tune</span></div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="server">Server</button>
+      <button data-tab="local">Local</button>
+      <button data-tab="youtube">YouTube Music</button>
+    </nav>
+    <div class="top-right">
+      <button class="search-btn" id="searchBtn"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>Search</button>
+      <div class="clock" id="clock">--:--</div>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></button>
+    </div>
+  </header>
+  <div class="neon-tube"></div>
+
+  <main class="browse" id="browse">
+    <div class="browse-bar" id="browseBar"></div>
+    <div class="browse-body">
+      <div class="scroller" id="scroller"></div>
+      <div class="az" id="az"></div>
+    </div>
+  </main>
+
+  <aside class="side">
+    <section class="np" id="np">
+      <div class="turntable">
+        <div class="platter"></div>
+        <div class="record" id="record">
+          <div class="label"><img id="npArt" alt=""><div class="label-empty" id="npArtEmpty"><b>Jukebox</b><small>45 R.P.M.</small></div></div>
+          <div class="spindle"></div>
+        </div>
+        <svg class="tonearm" viewBox="0 0 100 100" aria-hidden="true">
+          <defs><linearGradient id="chr" x1="0" x2="1"><stop offset="0" stop-color="#8d8a86"/><stop offset=".45" stop-color="#fffdf8"/><stop offset=".6" stop-color="#b9b4ad"/><stop offset="1" stop-color="#f1ede6"/></linearGradient></defs>
+          <circle cx="88" cy="12" r="8.5" fill="#1a120c"/><circle cx="88" cy="12" r="7" fill="url(#chr)"/><circle cx="88" cy="12" r="2.6" fill="#3b2a20"/>
+          <path d="M88 12 L86 50 Q85.5 60 76 70" stroke="url(#chr)" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+          <rect x="70" y="67" width="9" height="5.5" rx="1.2" fill="#1a120c" transform="rotate(-38 74.5 69.75)"/>
+          <rect x="96" y="7" width="3" height="10" rx="1" fill="url(#chr)"/>
+        </svg>
+      </div>
+      <div class="display">
+        <div class="display-top"><span class="np-label">Now Playing</span><span class="src-pill" id="npSrc"></span></div>
+        <div class="np-title" id="npTitle">Nothing playing</div>
+        <div class="np-artist" id="npArtist">Pick a song to get started</div>
+        <div class="progress" id="progress"><div class="progress-fill" id="progressFill"></div><div class="progress-knob" id="progressKnob"></div></div>
+        <div class="times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+      </div>
+      <div class="controls">
+        <button class="key play" id="playBtn" aria-label="Play/Pause"><span class="key-face"><span id="playIco">▶</span><span id="playLbl">Play</span></span></button>
+        <button class="key reject" id="skipBtn" aria-label="Reject"><span class="key-face"><span>◼</span><span>Reject</span></span></button>
+        <div class="vol"><span class="vol-lbl">Volume</span><div class="vol-track" id="volTrack"><div class="vol-fill" id="volFill"></div></div></div>
+      </div>
+    </section>
+    <section class="queue">
+      <div class="queue-head"><span class="script">Selections</span><span class="queue-count" id="queueCount">0</span></div>
+      <ol class="queue-list" id="queueList"></ol>
+    </section>
+  </aside>
+</div>
+
+<!-- Album sheet -->
+<div class="overlay" id="albumOverlay" hidden>
+  <div class="sheet album-sheet">
+    <button class="close-x" data-close>×</button>
+    <div class="album-left">
+      <img id="albumArt" alt="">
+      <div class="album-title" id="albumTitle"></div>
+      <div class="album-artist" id="albumArtist"></div>
+      <button class="big-btn primary" id="albumAddAll">Queue whole album</button>
+    </div>
+    <ol class="tracklist" id="albumTracks"></ol>
+  </div>
+</div>
+
+<!-- Search -->
+<div class="overlay search-overlay" id="searchOverlay" hidden>
+  <div class="search-panel">
+    <div class="search-row">
+      <div class="search-src" id="searchSrc"></div>
+      <input id="searchInput" class="search-input" placeholder="Song, artist or album" autocomplete="off" spellcheck="false">
+      <button class="close-x static" data-close>×</button>
+    </div>
+    <div class="suggest" id="suggest"></div>
+  </div>
+</div>
+
+<!-- On-screen keyboard -->
+<div class="osk" id="osk" hidden></div>
+
+<!-- Settings -->
+<div class="overlay" id="settingsOverlay" hidden>
+  <div class="sheet settings-sheet" id="settingsSheet"></div>
+</div>
+
+<!-- PIN -->
+<div class="overlay" id="pinOverlay" hidden>
+  <div class="sheet pin-sheet">
+    <div class="pin-title">Operator PIN</div>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-pad" id="pinPad"></div>
+  </div>
+</div>
+
+<!-- Idle / attract screen -->
+<div class="idle" id="idle" hidden>
+  <div class="bubble left"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="bubble right"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="idle-clock" id="idleClock"></div>
+  <div class="idle-inner">
+    <div class="idle-record"><div class="record big" id="idleRecord"><div class="label"><img class="idle-art" id="idleArt" alt=""><div class="label-empty" id="idleArtEmpty"><b>Jukebox</b><small>45 R.P.M.</small></div></div><div class="spindle"></div></div></div>
+    <div class="idle-text">
+      <div class="idle-np">Now Playing</div>
+      <div class="idle-title" id="idleTitle"></div>
+      <div class="idle-artist" id="idleArtist"></div>
+      <div class="idle-next" id="idleNext"></div>
+    </div>
+  </div>
+  <div class="idle-cta">Make your selection</div>
+  <div class="idle-tap">Touch anywhere to begin</div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<script src="app.js"></script>
+</body>
+</html>

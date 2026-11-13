@@ -1,0 +1,106 @@
+{
+  "name": "jukebox",
+  "version": "1.2.0",
+  "description": "Touchscreen jukebox for Jellyfin, local music and YouTube Music",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "release:win": "electron-builder --win --publish always",
+    "release:linux": "electron-builder --linux --publish always"
+  },
+  "author": {
+    "name": "Jukebox",
+    "email": "jukebox@localhost"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "electron-updater": "^6.8.11",
+    "music-metadata": "^12.5.0",
+    "youtubei.js": "^18.3.0"
+  },
+  "devDependencies": {
+    "@fontsource/alfa-slab-one": "^5.3.0",
+    "@fontsource/bebas-neue": "^5.3.0",
+    "@fontsource/courier-prime": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/oswald": "^5.3.0",
+    "@fontsource/yellowtail": "^5.3.0",
+    "electron": "^45.3.1",
+    "electron-builder": "^26.18.0"
+  },
+  "productName": "Jukebox",
+  "build": {
+    "appId": "nz.jukebox.app",
+    "productName": "Jukebox",
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo",
+      "icon": "build/icon.png",
+      "maintainer": "Jukebox <jukebox@localhost>"
+    },
+    "deb": {
+      "depends": [
+        "libnss3",
+        "libasound2 | libasound2t64"
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "Jukebox-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Jukebox-${version}-portable.exe"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ShallowMouse",
+        "repo": "jukebox-releases",
+        "releaseType": "release"
+      }
+    ],
+    "electronLanguages": [
+      "en-US",
+      "en-GB"
+    ],
+    "compression": "maximum",
+    "appImage": {
+      "artifactName": "Jukebox-${version}.${ext}"
+    }
+  },
+  "homepage": "https://github.com/ShallowMouse/jukebox"
+}
