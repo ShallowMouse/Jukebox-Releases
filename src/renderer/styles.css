@@ -420,3 +420,6 @@ body.osk-open .settings-sheet { margin-bottom: 40vh; max-height: 55vh; }
 .top-row .artist-card { width: 8.6rem; }
 .top-row .artist-card .pic { width: 8.6rem; height: 8.6rem; display: grid; place-items: center; font-family: var(--script); font-size: 2.6rem; color: rgba(245, 233, 204, .5); }
 .empty .top-artists { width: min(100%, 80rem); text-align: left; }
+
+/* no seek bar: just the elapsed / total time under the title */
+.display .times { margin-top: .55rem; font-size: 1.05rem; }

@@ -510,7 +510,29 @@ function addMany(tracks) {
   toast(n ? `Added ${n} song${n > 1 ? 's' : ''} to the queue` : 'Those songs are already queued');
   return n;
 }
+/* Preload: the next YouTube song in line loads in a standby player while this one plays.
+   If the queue is empty, autoplay picks are chosen early so they can be preloaded too. */
+let preloadTimer = null, filling = false;
+function schedulePreload(delay = 1500) {
+  clearTimeout(preloadTimer);
+  preloadTimer = setTimeout(doPreload, delay);
+}
+async function doPreload() {
+  if (!S.cfg || !SRC.youtube.ready()) return;
+  // let a YouTube song that is just starting get the bandwidth first
+  if (S.kind === 'yt' && S.pos < 3) { schedulePreload(2000); return; }
+  if (!S.queue.length && S.current && S.cfg.autoplay !== 'off' && !filling) {
+    filling = true;
+    try { await autofill(); } finally { filling = false; }
+    renderQueue(); saveState();
+    return; // renderQueue schedules the preload
+  }
+  const nx = S.queue[0];
+  jb.yt.preload(nx && nx.source === 'youtube' ? nx.id : null).catch(() => {});
+}
+
 function renderQueue() {
+  if (S.current) schedulePreload();
   const list = $('#queueList');
   $('#queueCount').textContent = S.queue.filter(q => !q.auto).length;
   if (!S.queue.length) {
@@ -680,21 +702,11 @@ function renderTonearm() {
 
 function renderProgress() {
   renderTonearm();
-  const f = S.dur > 0 ? Math.min(1, S.pos / S.dur) : 0;
-  $('#progressFill').style.width = f * 100 + '%';
-  $('#progressKnob').style.left = f * 100 + '%';
   $('#tCur').textContent = fmt(S.pos); $('#tDur').textContent = fmt(S.dur);
 }
 setInterval(renderProgress, 250);
 
-function seekFromEvent(e) {
-  if (!S.current || !S.dur || S.ytAd) return;
-  const r = $('#progress').getBoundingClientRect();
-  const t = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * S.dur;
-  if (S.kind === 'audio') audio.currentTime = t; else jb.yt.cmd('seek', t);
-  S.pos = t; renderProgress();
-}
-$('#progress').addEventListener('pointerdown', seekFromEvent);
+
 
 // volume
 function renderVol() { $('#volFill').style.width = S.cfg.volume * 100 + '%'; }

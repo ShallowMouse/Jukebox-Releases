@@ -36,7 +36,6 @@ const DEFAULTS = {
 
 let config = loadConfig();
 let mainWin = null;
-let ytWin = null;
 
 function loadConfig() {
   try {
@@ -89,7 +88,7 @@ function createMainWindow() {
   mainWin.on('close', () => {
     // Closing the jukebox window quits everything, including the hidden YouTube player.
     app.isQuitting = true;
-    if (ytWin && !ytWin.isDestroyed()) { ytWin.webContents.setAudioMuted(true); ytWin.destroy(); }
+    for (const w of yt2.wins) if (w && !w.isDestroyed()) { w.webContents.setAudioMuted(true); w.destroy(); }
   });
   mainWin.on('closed', () => {
     mainWin = null;
@@ -452,10 +451,13 @@ function setupYtSession() {
     cb({ requestHeaders: h });
   });
 }
-function ensureYtWin() {
-  if (ytWin && !ytWin.isDestroyed()) return ytWin;
+// Two hidden YouTube Music players. The active one plays; the standby one loads the next
+// YouTube song in the queue (paused and muted) so it can start the moment its turn comes.
+const yt2 = { wins: [null, null], active: 0, preloadId: null, preloadReady: false };
+const ytExpect = new Map(); // webContents id -> { id, mode: 'play' | 'preload' } for the page that loads next
+function makeYtWin(i) {
   setupYtSession();
-  ytWin = new BrowserWindow({
+  const w = new BrowserWindow({
     width: 1100, height: 800, show: false, title: 'YouTube Music — Jukebox',
     autoHideMenuBar: true,
     webPreferences: {
@@ -465,46 +467,85 @@ function ensureYtWin() {
       backgroundThrottling: false,
     },
   });
-  ytWin.webContents.setUserAgent(FIREFOX_UA);
-  ytWin.webContents.setAudioMuted(false);
+  w.webContents.setUserAgent(FIREFOX_UA);
+  w.webContents.setAudioMuted(i !== yt2.active);
   // YouTube's page asks "leave site?" while playing; never let that block a new song or quitting.
-  ytWin.webContents.on('will-prevent-unload', (e) => e.preventDefault());
-  ytWin.on('close', (e) => {
+  w.webContents.on('will-prevent-unload', (e) => e.preventDefault());
+  w.on('close', (e) => {
     if (app.isQuitting) return;
     e.preventDefault();
-    ytWin.setAlwaysOnTop(false);
-    ytWin.hide();
-    ytWin.loadURL('https://music.youtube.com/');
-    send('yt:loginClosed');
+    w.setAlwaysOnTop(false);
+    w.hide();
+    ytExpect.delete(w.webContents.id);
+    w.loadURL('https://music.youtube.com/');
+    if (yt2.wins[yt2.active] === w) send('yt:loginClosed');
   });
-  ytWin.loadURL('https://music.youtube.com/');
-  return ytWin;
+  w.loadURL('https://music.youtube.com/');
+  yt2.wins[i] = w;
+  return w;
 }
-ipcMain.handle('yt:play', (_e, videoId) => {
-  const w = ensureYtWin();
-  w.webContents.send('yt:expect', videoId);
+function ytAt(i) { const w = yt2.wins[i]; return w && !w.isDestroyed() ? w : makeYtWin(i); }
+function activeYt() { const w = yt2.wins[yt2.active]; return w && !w.isDestroyed() ? w : null; }
+function ensureYtWin() { return ytAt(yt2.active); }
+function ytLoad(w, videoId, mode) {
+  ytExpect.set(w.webContents.id, { id: videoId, mode });
   w.loadURL(`https://music.youtube.com/watch?v=${encodeURIComponent(videoId)}`);
+}
+// the page asks which song it is meant to be when it loads
+ipcMain.on('yt:getExpect', (e) => { e.returnValue = ytExpect.get(e.sender.id) || null; });
+
+ipcMain.handle('yt:play', (_e, videoId) => {
+  const old = activeYt();
+  if (yt2.preloadId === videoId) {
+    // the standby player already has this song loaded: swap players
+    const s = 1 - yt2.active;
+    const w = ytAt(s);
+    if (old) { old.webContents.send('yt:cmd', 'stop'); old.webContents.setAudioMuted(true); ytExpect.delete(old.webContents.id); }
+    yt2.active = s; yt2.preloadId = null; yt2.preloadReady = false;
+    ytExpect.set(w.webContents.id, { id: videoId, mode: 'play' });
+    w.webContents.setAudioMuted(false);
+    w.webContents.send('yt:cmd', 'volume', ytVolume);
+    w.webContents.send('yt:activate', videoId);
+    return 'preloaded';
+  }
+  const w = ytAt(yt2.active);
+  w.webContents.setAudioMuted(false);
+  ytLoad(w, videoId, 'play');
+  return 'loading';
+});
+ipcMain.handle('yt:preload', (_e, videoId) => {
+  if (!videoId) { yt2.preloadId = null; return; }
+  if (yt2.preloadId === videoId) return;
+  yt2.preloadId = videoId; yt2.preloadReady = false;
+  const w = ytAt(1 - yt2.active);
+  w.webContents.setAudioMuted(true);
+  ytLoad(w, videoId, 'preload');
 });
 let ytVolume = typeof config.volume === 'number' ? config.volume : 0.8;
 ipcMain.on('yt:getVolume', (e) => { e.returnValue = ytVolume; });
 ipcMain.handle('yt:cmd', (_e, cmd, arg) => {
-  if (cmd === 'volume' && typeof arg === 'number') ytVolume = arg;
-  if (!ytWin || ytWin.isDestroyed()) return;
-  ytWin.webContents.send('yt:cmd', cmd, arg);
+  if (cmd === 'volume' && typeof arg === 'number') {
+    ytVolume = arg;
+    for (const w of yt2.wins) if (w && !w.isDestroyed()) w.webContents.send('yt:cmd', 'volume', arg);
+    return;
+  }
+  const w = activeYt(); if (w) w.webContents.send('yt:cmd', cmd, arg);
 });
-ipcMain.handle('yt:stop', () => {
-  if (!ytWin || ytWin.isDestroyed()) return;
-  ytWin.webContents.send('yt:cmd', 'stop');
-});
+ipcMain.handle('yt:stop', () => { const w = activeYt(); if (w) { w.webContents.send('yt:cmd', 'stop'); ytExpect.delete(w.webContents.id); } });
 ipcMain.handle('yt:showLogin', () => {
   const w = ensureYtWin();
   w.webContents.send('yt:cmd', 'stop');
+  ytExpect.delete(w.webContents.id);
   w.loadURL('https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F');
   w.setAlwaysOnTop(true, 'screen-saver');
   w.show(); w.focus();
 });
-ipcMain.handle('yt:hideLogin', () => { if (ytWin && !ytWin.isDestroyed()) ytWin.hide(); });
-ipcMain.on('yt:state', (_e, st) => send('yt:state', st));
+ipcMain.handle('yt:hideLogin', () => { const w = activeYt(); if (w) w.hide(); });
+ipcMain.on('yt:state', (e, st) => {
+  const a = activeYt();
+  if (a && e.sender === a.webContents) { send('yt:state', st); return; }
+  if (st && st.event === 'tick' && st.videoId === yt2.preloadId && st.ready) yt2.preloadReady = true;
+});
 
 
 

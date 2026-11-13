@@ -42,7 +42,18 @@ setInterval(ytPlayerFull, 2000);
 let endedFor = null;
 let startedAt = 0;
 
-ipcRenderer.on('yt:expect', (_e, id) => { expected = id; wantPlaying = true; endedFor = null; startedAt = Date.now(); seen = { id: null, time: 0, dur: 0 }; });
+let mode = 'play';           // 'preload': load the song but keep it paused at the start
+function expect(id, m) {
+  expected = id; mode = m || 'play'; wantPlaying = mode === 'play';
+  endedFor = null; startedAt = Date.now(); seen = { id: null, time: 0, dur: 0 };
+}
+ipcRenderer.on('yt:expect', (_e, id, m) => expect(id, m));
+// standby player becomes the active one: start the song it has ready
+ipcRenderer.on('yt:activate', (_e, id) => {
+  expect(id, 'play');
+  const v = document.querySelector('video');
+  if (v) { if (v.currentTime > 1) v.currentTime = 0; v.play().catch(() => {}); }
+});
 ipcRenderer.on('yt:cmd', (_e, cmd, arg) => {
   const v = document.querySelector('video');
   switch (cmd) {
@@ -85,6 +96,14 @@ function tick() {
   const still = document.querySelector('ytmusic-you-there-renderer button, tp-yt-paper-dialog ytmusic-you-there-renderer #button');
   if (still) still.click();
 
+  if (v && mode === 'preload') {
+    // standby: keep the next song loaded, paused at its start
+    hook(v); route(v);
+    if (!v.paused) v.pause();
+    if (id === expected && v.currentTime > 0.5 && !v.seeking) v.currentTime = 0;
+    ipcRenderer.send('yt:state', { event: 'tick', videoId: id, expected, ad, paused: true, currentTime: 0, duration: v.duration || 0, ready: v.readyState >= 2 });
+    return;
+  }
   if (v) {
     hook(v);
     route(v);
@@ -117,4 +136,6 @@ function tick() {
     ipcRenderer.send('yt:state', { event: 'tick', videoId: id, expected, ad, paused: true, currentTime: 0, duration: 0, ready: false });
   }
 }
+// A freshly loaded page asks main which song it should be (messages sent before a reload are lost).
+try { const ex = ipcRenderer.sendSync('yt:getExpect'); if (ex && ex.id) expect(ex.id, ex.mode); } catch {}
 setInterval(tick, 400);
