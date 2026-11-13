@@ -185,9 +185,8 @@ body.is-playing .record { animation-play-state: running; }
 .label-empty small { font-family: var(--label); font-size: .62rem; letter-spacing: .25em; transform: translateY(.9rem); }
 .record.big .label-empty b { font-size: 4.2rem; } .record.big .label-empty small { font-size: 1.2rem; transform: translateY(2.2rem); }
 .spindle { position: absolute; inset: 47.5%; border-radius: 50%; background: var(--chrome); box-shadow: 0 0 0 .18rem rgba(0,0,0,.6); }
-.tonearm { position: absolute; inset: -4%; width: 108%; height: 108%; pointer-events: none; transform-origin: 88% 12%; transform: rotate(-24deg); transition: transform 1.4s cubic-bezier(.4, 0, .2, 1);
+.tonearm { position: absolute; inset: -4%; width: 108%; height: 108%; pointer-events: none; transform-origin: 88% 12%; transform: rotate(-24deg); transition: transform 1.3s cubic-bezier(.4, 0, .2, 1);
   filter: drop-shadow(.3rem .5rem .4rem rgba(0,0,0,.6)); }
-body.is-playing .tonearm { transform: rotate(7deg); }
 
 .display { border-radius: .6rem; padding: .8rem 1rem .5rem; background: radial-gradient(120% 140% at 50% 0%, #fff4d8, #f1d797 60%, #d7b469);
   color: var(--ink); box-shadow: inset 0 0 1.6rem rgba(160, 100, 20, .45), 0 0 1.8rem rgba(255, 190, 90, .35), 0 0 0 .22rem #cfcac2, 0 0 0 .32rem #4a3426; position: relative; }

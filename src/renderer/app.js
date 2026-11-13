@@ -573,6 +573,8 @@ function stopAll() {
   renderNP(); renderQueue(); saveState();
 }
 function startTrack(t) {
+  const changing = !!S.current;
+  S.armDropAt = Date.now() + (changing ? 1400 : 300);
   S.current = t; S.pos = 0; S.dur = t.duration || 0; S.ytAd = false;
   if (t.source === 'youtube') {
     audio.pause(); audio.removeAttribute('src'); audio.load();
@@ -651,7 +653,33 @@ function renderNP() {
   renderIdle();
   updateArtistPhoto();
 }
+/* Tonearm: follows the song like a real stylus, from the lead-in groove at the outer
+   edge to the run-out groove by the label. Angles come from the arm's geometry
+   (pivot-to-stylus 64, pivot-to-spindle 58, in % of the record), because a pivoting
+   arm doesn't move the needle inward at a constant rate. */
+const ARM = { L: 64.1, D: 58.0, PHI0: 31.8, REST: -24, R_START: 47, R_END: 22 };
+let armAngle = null;
+function armAngleFor(radius) {
+  const c = (ARM.L * ARM.L + ARM.D * ARM.D - radius * radius) / (2 * ARM.L * ARM.D);
+  return ARM.PHI0 - Math.acos(Math.max(-1, Math.min(1, c))) * 180 / Math.PI;
+}
+function renderTonearm() {
+  const arm = $('.tonearm'); if (!arm) return;
+  let target = ARM.REST;
+  if (S.current && Date.now() >= (S.armDropAt || 0)) {
+    const f = S.dur > 0 && !S.ytAd ? Math.min(1, Math.max(0, S.pos / S.dur)) : 0;
+    target = armAngleFor(ARM.R_START - (ARM.R_START - ARM.R_END) * f);
+  }
+  if (armAngle !== null && Math.abs(target - armAngle) < 0.02) return;
+  // big moves (lifting, setting down, seeking) swing; normal tracking glides
+  const big = armAngle === null || Math.abs(target - armAngle) > 1.5;
+  arm.style.transition = big ? 'transform 1.3s cubic-bezier(.4, 0, .2, 1)' : 'transform .3s linear';
+  arm.style.transform = `rotate(${target.toFixed(2)}deg)`;
+  armAngle = target;
+}
+
 function renderProgress() {
+  renderTonearm();
   const f = S.dur > 0 ? Math.min(1, S.pos / S.dur) : 0;
   $('#progressFill').style.width = f * 100 + '%';
   $('#progressKnob').style.left = f * 100 + '%';
