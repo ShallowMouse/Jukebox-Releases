@@ -381,9 +381,26 @@ ipcMain.handle('yt:radio', async (_e, videoId, n = 10) => {
 
 // Hidden player window: music.youtube.com does the actual playback (so a signed-in
 // Premium account gets no ads), we drive the <video> element from yt-preload.js.
-const CHROME_UA = `Mozilla/5.0 (${process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome.split('.')[0]}.0.0.0 Safari/537.36`;
+// Google refuses sign-in from embedded Chromium ("This browser or app may not be secure").
+// It accepts Firefox, so the YouTube window presents itself as Firefox ESR everywhere:
+// the User-Agent header, navigator.userAgent, and no Chromium client-hint headers.
+const FIREFOX_UA = `Mozilla/5.0 (${process.platform === 'win32' ? 'Windows NT 10.0; Win64; x64' : 'X11; Linux x86_64'}; rv:140.0) Gecko/20100101 Firefox/140.0`;
+let ytSessionReady = false;
+function setupYtSession() {
+  if (ytSessionReady) return;
+  ytSessionReady = true;
+  const ses = session.fromPartition('persist:youtube');
+  ses.setUserAgent(FIREFOX_UA, 'en-NZ,en;q=0.9');
+  ses.webRequest.onBeforeSendHeaders((details, cb) => {
+    const h = details.requestHeaders;
+    for (const k of Object.keys(h)) if (/^sec-ch-ua/i.test(k)) delete h[k];
+    h['User-Agent'] = FIREFOX_UA;
+    cb({ requestHeaders: h });
+  });
+}
 function ensureYtWin() {
   if (ytWin && !ytWin.isDestroyed()) return ytWin;
+  setupYtSession();
   ytWin = new BrowserWindow({
     width: 1100, height: 800, show: false, title: 'YouTube Music — Jukebox',
     autoHideMenuBar: true,
@@ -394,9 +411,16 @@ function ensureYtWin() {
       backgroundThrottling: false,
     },
   });
-  ytWin.webContents.setUserAgent(CHROME_UA);
+  ytWin.webContents.setUserAgent(FIREFOX_UA);
   ytWin.webContents.setAudioMuted(false);
-  ytWin.on('close', (e) => { if (!app.isQuitting) { e.preventDefault(); ytWin.hide(); } });
+  ytWin.on('close', (e) => {
+    if (app.isQuitting) return;
+    e.preventDefault();
+    ytWin.setAlwaysOnTop(false);
+    ytWin.hide();
+    ytWin.loadURL('https://music.youtube.com/');
+    send('yt:loginClosed');
+  });
   ytWin.loadURL('https://music.youtube.com/');
   return ytWin;
 }
@@ -417,6 +441,7 @@ ipcMain.handle('yt:showLogin', () => {
   const w = ensureYtWin();
   w.webContents.send('yt:cmd', 'stop');
   w.loadURL('https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F');
+  w.setAlwaysOnTop(true, 'screen-saver');
   w.show(); w.focus();
 });
 ipcMain.handle('yt:hideLogin', () => { if (ytWin && !ytWin.isDestroyed()) ytWin.hide(); });

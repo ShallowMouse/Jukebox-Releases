@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('jb', {
     play: inv('yt:play'), cmd: inv('yt:cmd'), stop: inv('yt:stop'),
     showLogin: inv('yt:showLogin'), hideLogin: inv('yt:hideLogin'),
     onState: (fn) => ipcRenderer.on('yt:state', (_e, s) => fn(s)),
+    onLoginClosed: (fn) => ipcRenderer.on('yt:loginClosed', () => fn()),
   },
   app: { quit: inv('app:quit'), version: inv('app:version') },
   update: {

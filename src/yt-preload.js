@@ -1,6 +1,16 @@
 // Runs inside the hidden music.youtube.com window. Drives the page's <video> element
 // and reports playback state back to the jukebox.
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, contextBridge } = require('electron');
+
+// Look like Firefox to Google's scripts too: Firefox has no navigator.userAgentData.
+try {
+  contextBridge.executeInMainWorld({
+    func: () => {
+      try { Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => undefined, configurable: true }); } catch {}
+      try { delete window.chrome; } catch {}
+    },
+  });
+} catch {}
 
 let expected = null;      // videoId the jukebox asked for
 let wantPlaying = false;  // jukebox wants audio running

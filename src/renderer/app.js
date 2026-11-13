@@ -502,6 +502,11 @@ jb.yt.onState((s) => {
   const playing = !s.paused;
   if (playing !== S.playing) { S.playing = playing; renderPlayIcon(); }
 });
+jb.yt.onLoginClosed(() => {
+  toast('YouTube Music sign-in closed');
+  // signing in stops the YouTube player, so restart the song it was on
+  if (S.kind === 'yt' && S.current) setTimeout(() => { S.ytLastProgressAt = Date.now(); jb.yt.play(S.current.id); }, 2500);
+});
 // watchdog: YouTube track never started
 setInterval(() => {
   if (S.kind === 'yt' && S.playing && S.current && Date.now() - S.ytLastProgressAt > 30000) {
@@ -728,7 +733,7 @@ async function renderSettings() {
 
     <h3>YouTube Music</h3>
     <div class="set-row"><div class="lbl">Enable YouTube Music<span class="sub">Searches the full YouTube Music catalogue. Sign in with a Premium account to remove ads.</span></div>${tog('youtube', c.youtube.enabled)}</div>
-    <div class="set-row"><div class="lbl">Account<span class="sub">Opens a sign-in window. Close it when you're done.</span></div><button class="small-btn" data-act="yt-login">Sign in / account…</button></div>
+    <div class="set-row"><div class="lbl">Account<span class="sub">Opens a Google sign-in window in front of the jukebox. Close it once you're signed in.</span></div><button class="small-btn" data-act="yt-login">Sign in / account…</button></div>
 
     <h3>Playback</h3>
     <div class="set-row"><div class="lbl">When the queue runs out<span class="sub">Keeps music going with random picks until someone chooses a song</span></div>
